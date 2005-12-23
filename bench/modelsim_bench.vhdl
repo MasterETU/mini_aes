@@ -1,4 +1,4 @@
--- $Id: modelsim_bench.vhdl,v 1.1.1.1 2005-12-06 02:47:46 arif_endro Exp $
+-- $Id: modelsim_bench.vhdl,v 1.2 2005-12-23 04:27:00 arif_endro Exp $
 -------------------------------------------------------------------------------
 -- Title       : ModelSim bench
 -- Project     : Mini AES 128 
@@ -51,10 +51,11 @@ architecture structural of modelsim_bench is
     port (
       clock          : in  std_logic;
       clear          : in  std_logic;
+      load_i         : in  std_logic;
       enc            : in  std_logic;
-      key_i          : in  std_logic_vector (127 downto 000);
-      data_i         : in  std_logic_vector (127 downto 000);
-      data_o         : out std_logic_vector (127 downto 000);
+      key_i          : in  std_logic_vector (007 downto 000);
+      data_i         : in  std_logic_vector (007 downto 000);
+      data_o         : out std_logic_vector (007 downto 000);
       done_o         : out std_logic
       );
   end component;
@@ -62,49 +63,52 @@ architecture structural of modelsim_bench is
   component input
     port (
       clock          : out std_logic;
-      clear          : out std_logic;
+      load           : out std_logic;
       done           : in  std_logic;
       test_iteration : out integer;
-      data_i         : out std_logic_vector (127 downto 000);
-      cipher_o       : out std_logic_vector (127 downto 000);
-      key_i          : out std_logic_vector (127 downto 000)
+      key_i_byte     : out std_logic_vector (007 downto 000);
+      data_i_byte    : out std_logic_vector (007 downto 000);
+      cipher_o_byte  : out std_logic_vector (007 downto 000)
       );
   end component;
 --
   component output
     port (
       clock          : in  std_logic;
+      clear          : in  std_logic;
+      load           : in  std_logic;
       enc            : in  std_logic;
       done           : in  std_logic;
       test_iteration : in  integer;
-      verifier       : in  std_logic_vector (127 downto 000);
-      data_o         : in  std_logic_vector (127 downto 000)
+      verifier       : in  std_logic_vector (007 downto 000);
+      data_o         : in  std_logic_vector (007 downto 000)
       );
   end component;
 
+  signal load_enc           : std_logic;
+  signal load_dec           : std_logic;
   signal clock_enc          : std_logic;
   signal clock_dec          : std_logic;
-  signal clear_enc          : std_logic;
-  signal clear_dec          : std_logic;
   signal done_dec           : std_logic;
   signal done_enc           : std_logic;
   signal test_iteration_enc : integer;
   signal test_iteration_dec : integer;
-  signal cipher_o_enc       : std_logic_vector (127 downto 000);
-  signal cipher_o_dec       : std_logic_vector (127 downto 000);
-  signal data_i_enc         : std_logic_vector (127 downto 000);
-  signal data_i_dec         : std_logic_vector (127 downto 000);
-  signal data_o_enc         : std_logic_vector (127 downto 000);
-  signal data_o_dec         : std_logic_vector (127 downto 000);
-  signal key_i_enc          : std_logic_vector (127 downto 000);
-  signal key_i_dec          : std_logic_vector (127 downto 000);
+  signal cipher_o_enc       : std_logic_vector (007 downto 000);
+  signal cipher_o_dec       : std_logic_vector (007 downto 000);
+  signal data_i_enc         : std_logic_vector (007 downto 000);
+  signal data_i_dec         : std_logic_vector (007 downto 000);
+  signal data_o_enc         : std_logic_vector (007 downto 000);
+  signal data_o_dec         : std_logic_vector (007 downto 000);
+  signal key_i_enc          : std_logic_vector (007 downto 000);
+  signal key_i_dec          : std_logic_vector (007 downto 000);
 
 begin
 
   my_aes_enc    : mini_aes
     port map (
       clock          => clock_enc,
-      clear          => clear_enc,
+      clear          => '0',
+      load_i         => load_enc,
       enc            => '0',
       key_i          => key_i_enc,
       data_i         => data_i_enc,
@@ -115,7 +119,8 @@ begin
   my_aes_dec    : mini_aes
     port map (
       clock          => clock_dec,
-      clear          => clear_dec,
+      clear          => '0',
+      load_i         => load_dec,
       enc            => '1',
       key_i          => key_i_dec,
       data_i         => cipher_o_dec,
@@ -126,27 +131,29 @@ begin
   my_input_enc  : input
     port map (
       clock          => clock_enc,
-      clear          => clear_enc,
+      load           => load_enc,
       done           => done_enc,
       test_iteration => test_iteration_enc,
-      data_i         => data_i_enc,
-      cipher_o       => cipher_o_enc,
-      key_i          => key_i_enc
+      key_i_byte     => key_i_enc,
+      data_i_byte    => data_i_enc,
+      cipher_o_byte  => cipher_o_enc
       );
   my_input_dec  : input
     port map (
       clock          => clock_dec,
-      clear          => clear_dec,
+      load           => load_dec,
       done           => done_dec,
       test_iteration => test_iteration_dec,
-      data_i         => data_i_dec,
-      cipher_o       => cipher_o_dec,
-      key_i          => key_i_dec
+      data_i_byte    => data_i_dec,
+      cipher_o_byte  => cipher_o_dec,
+      key_i_byte     => key_i_dec
       );
 --
   my_output_enc : output
     port map (
       clock          => clock_enc,
+      clear          => '0',
+      load           => load_enc,
       enc            => '0',
       done           => done_enc,
       test_iteration => test_iteration_enc,
@@ -157,6 +164,8 @@ begin
   my_output_dec : output
     port map (
       clock          => clock_dec,
+      clear          => '0',
+      load           => load_dec,
       enc            => '1',
       done           => done_dec,
       test_iteration => test_iteration_dec,

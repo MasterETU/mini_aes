@@ -1,4 +1,4 @@
--- $Id: input.vhdl,v 1.1.1.1 2005-12-06 02:47:46 arif_endro Exp $
+-- $Id: input.vhdl,v 1.2 2005-12-23 04:27:00 arif_endro Exp $
 -------------------------------------------------------------------------------
 -- Title       : Input
 -- Project     : Mini AES 128 
@@ -52,12 +52,12 @@ use std_developerskit.std_iopak.all;    -- Function From_HexString
 entity input is
   port (
     clock          : out std_logic;
-    clear          : out std_logic;
+    load           : out std_logic;
     done           : in  std_logic;
     test_iteration : out integer;
-    data_i         : out std_logic_vector (127 downto 000);
-    cipher_o       : out std_logic_vector (127 downto 000);
-    key_i          : out std_logic_vector (127 downto 000)
+    key_i_byte     : out std_logic_vector (007 downto 000);
+    data_i_byte    : out std_logic_vector (007 downto 000);
+    cipher_o_byte  : out std_logic_vector (007 downto 000)
     );
 end input;
 
@@ -67,11 +67,14 @@ architecture test_bench of input is
   file in_file_ptr            : text open read_mode is "../data/ecb_tbl.txt";
 --
   signal     clock_int        : std_logic := '0';
+  signal     ct               : std_logic_vector (127 downto 000);
+  signal     pt               : std_logic_vector (127 downto 000);
+  signal     ky               : std_logic_vector (127 downto 000);
 --
 begin
 --
-  clock_int          <= not(clock_int) after 1 ns;
-  clock              <= clock_int;
+  clock_int            <= not(clock_int) after 1 ns;
+  clock                <= clock_int;
 --
   process
 --
@@ -105,16 +108,23 @@ begin
       read(in_line, junk_cipher_text);
       read(in_line, cipher_text);
 --
-      wait until rising_edge(clock_int);
-      key_i          <= to_StdLogicVector(From_HexString(key( 01 to 32)));
-      data_i         <= to_StdLogicVector(From_HexString(plain_text( 01 to 32 )));
-      cipher_o       <= to_StdLogicVector(From_HexString(cipher_text( 01 to 32 )));
-      test_iteration <= test;
+      ky               <= to_StdLogicVector(From_HexString(key( 01 to 32)));
+      pt               <= to_StdLogicVector(From_HexString(plain_text( 01 to 32 )));
+      ct               <= to_StdLogicVector(From_HexString(cipher_text( 01 to 32 )));
 --
-      clear          <= '1';
+      for a in 1 to key'length/2 loop
+        wait until rising_edge(clock_int);
+        key_i_byte     <= to_StdLogicVector(From_HexString(key(2*a-1 to 2*a)));
+        data_i_byte    <= to_StdLogicVector(From_HexString(plain_text(2*a-1 to 2*a)));
+        cipher_o_byte  <= to_StdLogicVector(From_HexString(cipher_text(2*a-1 to 2*a)));
+        load           <= '1';
+        test_iteration <= test;
+      end loop;
+--
       wait until rising_edge(clock_int);
-      clear          <= '0';
-      wait until rising_edge(done);
+      load             <= '0';
+--
+      wait until falling_edge(done);
       wait until rising_edge(clock_int);
 --
     end loop;

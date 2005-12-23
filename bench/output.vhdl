@@ -1,4 +1,4 @@
--- $Id: output.vhdl,v 1.1.1.1 2005-12-06 02:47:47 arif_endro Exp $
+-- $Id: output.vhdl,v 1.2 2005-12-23 04:27:00 arif_endro Exp $
 -------------------------------------------------------------------------------
 -- Title       : Output
 -- Project     : Mini AES 128 
@@ -48,11 +48,13 @@ use std.textio.all;
 entity output is
   port (
     clock          : in std_logic;
+    clear          : in std_logic;
+    load           : in std_logic;
     enc            : in std_logic;
     done           : in std_logic;
     test_iteration : in integer;
-    verifier       : in std_logic_vector (127 downto 000);
-    data_o         : in std_logic_vector (127 downto 000)
+    verifier       : in std_logic_vector (007 downto 000);
+    data_o         : in std_logic_vector (007 downto 000)
     );
 end output;
 
@@ -63,7 +65,48 @@ architecture test_bench of output is
   signal failed         : integer := 0;
   signal passed         : integer := 0;
 
+  type fifo16x8 is array (0 to 15) of std_logic_vector (7 downto 0);
+
+  signal fifo_verifier : fifo16x8 :=
+  (
+   B"0000_0000", B"0000_0000", B"0000_0000", B"0000_0000",
+   B"0000_0000", B"0000_0000", B"0000_0000", B"0000_0000",
+   B"0000_0000", B"0000_0000", B"0000_0000", B"0000_0000",
+   B"0000_0000", B"0000_0000", B"0000_0000", B"0000_0000"
+  );
+
+  signal counter : integer range 0 to 15 := 0;
+  signal current_verifier : std_logic_vector (7 downto 0);
+
 begin
+
+  process(clock, clear)
+  begin
+  if (clear = '1') then
+     counter <= 0;
+  elsif (clock = '1' and clock'event) then
+     if (done = '0') then
+        counter <= 0;
+     elsif (counter < 15 ) then
+        counter <= counter + 1;
+     else
+        counter <= 0;
+     end if;
+  end if;
+  end process;
+
+  current_verifier <= fifo_verifier(counter);
+
+  process(clock, clear)
+  begin
+  if (clear = '1') then
+  fifo_verifier <= (others => ( others => '0'));
+  elsif(clock = '1' and clock'event) then
+     if (load = '1') then
+     fifo_verifier <= (fifo_verifier (1 to 15) & verifier);
+     end if;
+  end if;
+  end process;
 
   process (clock)
     variable out_line                     : line;
@@ -72,13 +115,15 @@ begin
       if (done = '1') then
         write(out_line, string'("Test ====> "));
         write(out_line, test_iteration);
+	write(out_line, string'(" byte "));
+	write(out_line, counter);
         if ( enc = '0') then
           writeline(out_enc_file_ptr, out_line);
         else
           writeline(out_dec_file_ptr, out_line);
         end if;
         write(out_line, string'("Expected : "));
-        write(out_line, verifier);
+        write(out_line, current_verifier);
         if ( enc = '0') then
           writeline(out_enc_file_ptr, out_line);
         else
@@ -92,7 +137,7 @@ begin
           writeline(out_dec_file_ptr, out_line);
         end if;
         write(out_line, string'("Status   : "));
-        if (verifier = data_o ) then
+        if (current_verifier = data_o ) then
           write (out_line, string'("OK"));
           passed <= passed + 1;
         else
