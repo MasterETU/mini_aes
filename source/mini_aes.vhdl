@@ -1,4 +1,4 @@
--- $Id: mini_aes.vhdl,v 1.1.1.1 2005-12-06 02:48:33 arif_endro Exp $
+-- $Id: mini_aes.vhdl,v 1.2 2005-12-23 04:21:39 arif_endro Exp $
 -------------------------------------------------------------------------------
 -- Title       : Mini AES 128
 -- Project     : Mini AES 128 
@@ -47,15 +47,33 @@ entity mini_aes is
   port (
     clock  : in  std_logic;
     clear  : in  std_logic;
+    load_i : in  std_logic;
     enc    : in  std_logic;             -- active low (e.g. 0 = encrypt, 1 = decrypt)
-    key_i  : in  std_logic_vector (127 downto 00);
-    data_i : in  std_logic_vector (127 downto 00);
-    data_o : out std_logic_vector (127 downto 00);
+    key_i  : in  std_logic_vector (7 downto 0);
+    data_i : in  std_logic_vector (7 downto 0);
+    data_o : out std_logic_vector (7 downto 0);
     done_o : out std_logic
     );
 end mini_aes;
 
 architecture data_flow of mini_aes is
+
+  component io_interface
+    port (
+      clock      : in  std_logic;
+      clear      : in  std_logic;
+      load_i     : in  std_logic;
+      load_i_int : out std_logic;
+      data_i     : in  std_logic_vector (7 downto 0);
+      key_i      : in  std_logic_vector (7 downto 0);
+      data_o     : out std_logic_vector (7 downto 0);
+      data_o_int : in  std_logic_vector (127 downto 000);
+      data_i_int : out std_logic_vector (127 downto 000);
+      key_i_int  : out std_logic_vector (127 downto 000);
+      done_o_int : in  std_logic;
+      done_o     : out std_logic
+      );
+  end component;
 
   component bram_block_a
     port (
@@ -200,7 +218,12 @@ architecture data_flow of mini_aes is
   signal   done             : std_logic                           := '0';
   signal   done_decrypt     : std_logic                           := '0';
   signal   counter1bit      : std_logic                           := '0';
+  signal   done_o_int       : std_logic                           := '0';
+  signal   data_i_int       : std_logic_vector (127 downto 000)   := ( X"00000000_00000000_00000000_00000000" );
+  signal   data_o_int       : std_logic_vector (127 downto 000)   := ( X"00000000_00000000_00000000_00000000" );
+  signal   key_i_int        : std_logic_vector (127 downto 000)   := ( X"00000000_00000000_00000000_00000000" );
   signal   load             : std_logic                           := '0';
+  signal   load_io          : std_logic                           := '0';
   signal   di_0_i           : std_logic_vector (007 downto 000);
   signal   di_1_i           : std_logic_vector (007 downto 000);
   signal   di_2_i           : std_logic_vector (007 downto 000);
@@ -244,7 +267,7 @@ architecture data_flow of mini_aes is
   signal   do_b_1_o         : std_logic_vector (07 downto 00);
   signal   do_b_2_o         : std_logic_vector (07 downto 00);
 
---signal data_i : std_logic_vector (127 downto 000) :=
+--signal data_i_int : std_logic_vector (127 downto 000) :=
 --( X"3243F6A8_885A308D_313198A2_E0370734" );  -- PT 0
 --( X"00112233_44556677_8899AABB_CCDDEEFF" );  -- PT 1
 --( X"3925841D_02DC09FB_DC118597_196A0B32" );  -- CT 0
@@ -262,7 +285,23 @@ begin
   we_a_i  <= GND;
   we_b_i  <= GND;
 
-  done_o <= done_decrypt;
+  done_o_int <= done_decrypt;
+
+  my_io : io_interface
+    port map (
+      clock      => clock,
+      clear      => clear,
+      load_i     => load_i,
+      load_i_int => load_io,
+      data_i     => data_i,
+      key_i      => key_i,
+      data_o     => data_o,
+      data_o_int => data_o_int,
+      data_i_int => data_i_int,
+      key_i_int  => key_i_int,
+      done_o_int => done_o_int,
+      done_o     => done_o
+      );
 
   sbox1     : bram_block_a
     port map (
@@ -302,7 +341,7 @@ begin
     port map (
       clock       => clock,
       load        => load,
-      key_i       => key_i,
+      key_i       => key_i_int,
       key_o       => key_o,
       done        => done
       );
@@ -319,7 +358,7 @@ begin
       clk_i       => clock,
       enc_i       => enc,
       load_i      => load,
-      data_i      => data_i,
+      data_i      => data_i_int,
       key_i       => key_b,
       di_0_i      => di_0_i,
       di_1_i      => di_1_i,
@@ -340,7 +379,8 @@ begin
       if (done = '1') then
         load                      <= '1';
       else
-        load                      <= '0';
+--      load                      <= '0';
+        load                      <= load_io;
       end if;
     end if;
   end process;
@@ -387,17 +427,17 @@ begin
                                ( key_o_srl2_p (03), key_o_srl2_p (02), key_o_srl2_p (01), key_o_srl2_p (00) );
 
   key_o_srl3 (43 downto 00) <= ( key_o_srl2 (43 downto 04) & 
-                                 key_i (127 downto 096) & 
-                                 key_i (095 downto 064) & 
-                                 key_i (063 downto 032) & 
-                                 key_i (031 downto 000)
+                                 key_i_int (127 downto 096) & 
+                                 key_i_int (095 downto 064) & 
+                                 key_i_int (063 downto 032) & 
+                                 key_i_int (031 downto 000)
                                ) when (done = '1') else 
                                  key_o_srl3 (43 downto 00);
 
   fifo16x8o (127 downto 000) <= fifo16x8i (127 downto 000) when (done = '1') else fifo16x8o (127 downto 000);
   fifo16x8i (127 downto 000) <= ( fifo16x8 (095 downto 000) & output_o );
 
-  data_o (127 downto 000) <= fifo16x8o (127 downto 000);
+  data_o_int (127 downto 000) <= fifo16x8o (127 downto 000);
 --
   input (0)               <= do_0_o;
   input (1)               <= do_1_o;
@@ -425,7 +465,7 @@ begin
   di_2_i                 <= output (15 downto 08)  when (enc = '0') else inv_mixcol_o (15 downto 08);
   di_3_i                 <= output (07 downto 00)  when (enc = '0') else inv_mixcol_o (07 downto 00);
 --
-  key_b (127 downto 000) <= key_i (127 downto 000) when (enc = '0') else (key_o_srl3 (43) & key_o_srl3 (42) & key_o_srl3 (41) & key_o_srl3 (40));
+  key_b (127 downto 000) <= key_i_int (127 downto 000) when (enc = '0') else (key_o_srl3 (43) & key_o_srl3 (42) & key_o_srl3 (41) & key_o_srl3 (40));
 
   current_key <= key_o_srl3(key_counter_down);
 
